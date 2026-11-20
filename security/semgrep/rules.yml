@@ -1,0 +1,9 @@
+
+rules:
+  - id: python-dangerous-eval
+    patterns:
+      - pattern: eval(...)
+    message: "Avoid using eval() because it can execute arbitrary Python code."
+    languages:
+      - python
+    severity: ERROR
