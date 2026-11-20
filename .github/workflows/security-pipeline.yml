@@ -41,10 +41,11 @@ jobs:
         run: |
           bandit -r app -f json -o reports/bandit-report.json
 
-            - name: Run Semgrep
-             continue-on-error: true
-             run: |
+      - name: Run Semgrep
+        continue-on-error: true
+        run: |
           semgrep scan --config security/semgrep/rules.yml --json --output reports/semgrep-report.json app
+
       - name: Run pip-audit
         continue-on-error: true
         run: |
