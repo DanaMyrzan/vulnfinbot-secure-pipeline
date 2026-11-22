@@ -18,38 +18,61 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Create reports directory
+        run: mkdir -p reports
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.13"
 
       - name: Install dependencies
+        id: install
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
           pip install bandit semgrep pip-audit
 
       - name: Run automated tests
+        if: always() && steps.install.outcome == 'success'
         run: pytest -v
 
-      - name: Create reports directory
-        if: always()
-        run: mkdir -p reports
-
       - name: Run Bandit
+        if: always() && steps.install.outcome == 'success'
         continue-on-error: true
         run: |
           bandit -r app -f json -o reports/bandit-report.json
 
       - name: Run Semgrep
+        if: always() && steps.install.outcome == 'success'
         continue-on-error: true
         run: |
           semgrep scan --config security/semgrep/rules.yml --json --output reports/semgrep-report.json app
 
       - name: Run pip-audit
+        if: always() && steps.install.outcome == 'success'
         continue-on-error: true
         run: |
           pip-audit -r requirements.txt -f json -o reports/pip-audit-report.json
+
+      - name: Build Docker image
+        id: docker_build
+        if: always() && steps.install.outcome == 'success'
+        continue-on-error: true
+        run: |
+          docker build -t vulnfinbot:latest .
+
+      - name: Run Trivy image scan
+        if: always() && steps.docker_build.outcome == 'success'
+        continue-on-error: true
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: vulnfinbot:latest
+          scan-type: image
+          format: json
+          output: reports/trivy-report.json
+          severity: CRITICAL,HIGH,MEDIUM,LOW
+          exit-code: '0'
 
       - name: Upload security reports
         if: always()
