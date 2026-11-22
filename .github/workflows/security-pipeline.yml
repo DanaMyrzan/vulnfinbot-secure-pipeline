@@ -53,7 +53,7 @@ jobs:
         if: always() && steps.install.outcome == 'success'
         continue-on-error: true
         run: |
-          pip-audit -r requirements.txt -f json -o reports/pip-audit-report.json
+            pip-audit -r requirements.txt -f json -o reports/dependency-report.json
 
       - name: Build Docker image
         id: docker_build
@@ -73,11 +73,11 @@ jobs:
           output: reports/trivy-report.json
           severity: CRITICAL,HIGH,MEDIUM,LOW
           exit-code: '0'
-
-      - name: Upload security reports
+      - name: Upload all security reports
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: security-reports
+          name: vulnfinbot-security-reports
           path: reports/
+          retention-days: 30
           if-no-files-found: warn
