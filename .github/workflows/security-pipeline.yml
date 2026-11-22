@@ -33,9 +33,13 @@ jobs:
           pip install -r requirements.txt
           pip install bandit semgrep pip-audit
 
-      - name: Run automated tests
+      - name: Run unit tests
         if: always() && steps.install.outcome == 'success'
-        run: pytest -v
+        run: pytest tests/test_app.py -v
+
+      - name: Run AI security tests
+        if: always() && steps.install.outcome == 'success'
+        run: pytest tests/test_ai_security.py -v
 
       - name: Run Bandit
         if: always() && steps.install.outcome == 'success'
@@ -53,7 +57,7 @@ jobs:
         if: always() && steps.install.outcome == 'success'
         continue-on-error: true
         run: |
-            pip-audit -r requirements.txt -f json -o reports/dependency-report.json
+          pip-audit -r requirements.txt -f json -o reports/dependency-report.json
 
       - name: Build Docker image
         id: docker_build
@@ -73,6 +77,39 @@ jobs:
           output: reports/trivy-report.json
           severity: CRITICAL,HIGH,MEDIUM,LOW
           exit-code: '0'
+
+      - name: Start application container
+        id: start_app
+        if: always() && steps.docker_build.outcome == 'success'
+        run: |
+          docker run -d --name vulnfinbot-container -p 5000:5000 vulnfinbot:latest
+
+      - name: Check application health
+        if: always() && steps.start_app.outcome == 'success'
+        run: |
+          for i in $(seq 1 30); do
+            if curl --fail --silent http://127.0.0.1:5000/health; then
+              echo "Application is healthy"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "Application health check failed"
+          docker logs vulnfinbot-container
+          exit 1
+
+      - name: Run OWASP ZAP baseline scan
+        if: always() && steps.start_app.outcome == 'success'
+        continue-on-error: true
+        run: |
+          docker run --rm --network host \
+            -v "$GITHUB_WORKSPACE/reports:/zap/wrk/:rw" \
+            ghcr.io/zaproxy/zaproxy:stable \
+            zap-baseline.py \
+            -t http://127.0.0.1:5000 \
+            -J zap-report.json \
+            -I
+
       - name: Upload all security reports
         if: always()
         uses: actions/upload-artifact@v4
