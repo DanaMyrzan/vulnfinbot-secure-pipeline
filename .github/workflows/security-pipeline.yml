@@ -65,7 +65,7 @@ jobs:
       - name: Run Trivy image scan
         if: always() && steps.docker_build.outcome == 'success'
         continue-on-error: true
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: vulnfinbot:latest
           scan-type: image
